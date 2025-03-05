@@ -8,6 +8,7 @@ from sempy_labs.perf_lab._sample_lab import (
     _generate_onelake_shared_expression,
     provision_perf_lab_lakehouse,
     provision_sales_sample_delta_tables,
+    apply_sales_sample_metadata,
     provision_sample_semantic_model,
     deprovision_perf_lab_lakehouses,
     deprovision_perf_lab_models,
@@ -60,10 +61,12 @@ from sempy_labs.perf_lab._test_suite import (
 from sempy_labs.perf_lab._adventure_works_dw import (
     get_adventureworks_dw_property_bag,
     provision_adventureworks_dw_delta_tables,
+    apply_adventureworks_metadata,
 )
 __all__ = [
     "get_adventureworks_dw_property_bag",
     "provision_adventureworks_dw_delta_tables",
+    "apply_adventureworks_metadata",
     "run_test_cycle",
     "_refresh_test_models",
     "_get_query_name",
@@ -95,6 +98,7 @@ __all__ = [
     "_generate_onelake_shared_expression",
     "provision_perf_lab_lakehouse",
     "provision_sales_sample_delta_tables",
+    "apply_sales_sample_metadata",
     "provision_sample_semantic_model",
     "deprovision_perf_lab_lakehouses",
     "deprovision_perf_lab_models",

@@ -579,7 +579,7 @@ def _trace_dax_queries(
     spark = SparkSession.builder.getOrCreate()
     warnings.filterwarnings("ignore", category=UserWarning)
 
-    base_cols = ["EventClass", "EventSubclass", "CurrentTime", "NTUserName", "TextData"]
+    base_cols = ["EventClass", "EventSubclass", "CurrentTime", "NTUserName", "TextData", "ActivityID", "RequestID"]
     begin_cols = base_cols + ["StartTime"]
     end_cols = base_cols + ["StartTime", "EndTime", "Duration", "CpuTime", "Success"]
 
@@ -588,12 +588,12 @@ def _trace_dax_queries(
         "QueryEnd": end_cols,
     }
 
-    event_schema["DirectQueryEnd"] = ["EventClass", "TextData", "Duration", "StartTime", "EndTime", "Error"]
+    event_schema["DirectQueryEnd"] = ["EventClass", "TextData", "Duration", "StartTime", "EndTime", "ActivityID", "RequestID"]
 
     event_schema["VertiPaqSEQueryBegin"] = begin_cols
     event_schema["VertiPaqSEQueryEnd"] = end_cols
     event_schema["VertiPaqSEQueryCacheMatch"] = base_cols
-    event_schema["ExecutionMetrics"] = ["EventClass", "ApplicationName", "TextData"]
+    event_schema["ExecutionMetrics"] = ["EventClass", "ApplicationName", "TextData", "ActivityID", "RequestID"]
 
     query_results = {}
     last_executed_query = ""

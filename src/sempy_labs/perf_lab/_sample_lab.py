@@ -210,6 +210,8 @@ def provision_perf_lab_lakehouse(
     lakehouse: Optional[str | UUID] = None,
     table_properties: Optional[dict] = None,
     table_generator: Optional[Callable] = None,
+    workspace_description: Optional[str] = "A master workspace with a sample lakehouse and a Direct Lake semantic model that uses the Delta tables from the sample lakehouse.",
+    lakehouse_description: Optional[str] = "A lakehouse with automatically generated sample Delta tables.",
 )  -> Tuple[UUID, UUID]:
     """
     Generates sample data for a date table.
@@ -232,6 +234,10 @@ def provision_perf_lab_lakehouse(
         The keys and values in the dictionary are specific to the table_generator function.
     table_generator
         A callback function to generate and persist the actual Delta tables in the lakehouse.
+    workspace_description : str, default="A master workspace with a sample lakehouse and a Direct Lake semantic model that uses the Delta tables from the sample lakehouse."
+        A description for the workspace to be applied when the workspace is created.
+    lakehouse_description : str, default="A lakehouse with automatically generated sample Delta tables."
+        A description for the lakehouse to be applied when the lakehouse is created.
 
     Returns
     -------
@@ -241,13 +247,13 @@ def provision_perf_lab_lakehouse(
 
     # Resolve the workspace name and id and provision a workspace if it doesn't exist.
     (workspace_name, workspace_id) = _get_or_create_workspace(
-        workspace=workspace, capacity_id=capacity_id,
-        description="A master workspace with a sample lakehouse and a Direct Lake semantic model that uses the Delta tables from the sample lakehouse.")
+        workspace = workspace, capacity_id=capacity_id,
+        description = workspace_description)
 
     # Resolve the lakehouse name and id and provision a lakehouse if it doesn't exist.
     (lakehouse_name, lakehouse_id) = _get_or_create_lakehouse(
-        lakehouse=lakehouse, workspace=workspace_id,
-        description="A lakehouse with a small number of automatically generated sample Delta tables.")
+        lakehouse = lakehouse, workspace = workspace_id,
+        description = lakehouse_description)
 
     # Call the provided callback function to generate the Delta tables.
     if table_generator is not None:
@@ -400,6 +406,7 @@ def provision_sample_semantic_model(
     semantic_model_name: str,
     semantic_model_mode: Optional[str] = "OneLake",
     overwrite: Optional[bool] = False,
+    update_metadata: Optional[Callable] = None,
 ) -> Tuple[str, UUID]:
     """
     Creates a semantic model in Direct Lake mode in the specified workspace using the specified lakehouse as the data source.
@@ -420,6 +427,9 @@ def provision_sample_semantic_model(
         An optional parameter to specify the mode of the semantic model. Two modes are supported: SQL and OneLake. By default, the function generates a Direct Lake model in OneLake mode.
     overwrite : bool, default=False
         If set to True, overwrites the existing semantic model if it already exists.
+    update_metadata : Callable, default = None
+        A callback function to apply specific metadata to a semantic model.
+
     Returns
     -------
     Tuple[str, UUID]
@@ -460,7 +470,7 @@ def provision_sample_semantic_model(
         dataset=semantic_model_name, workspace=workspace_id)
 
     print(f"{icons.in_progress} Adding final touches to Direct Lake semantic model '{semantic_model_name}' in workspace '{workspace_name}'.")
-    with connect_semantic_model(dataset=semantic_model_name, workspace=workspace_id, readonly=False) as tom:
+    with connect_semantic_model(dataset=dataset_name, workspace=workspace_id, readonly=False) as tom:
         # if the semantic_model_mode is OneLake
         # convert the data access expression in the model to Direct Lake on 
         if semantic_model_mode == semantic_model_modes[1]:
@@ -479,13 +489,45 @@ def provision_sample_semantic_model(
             
         print(f"{icons.checked} Direct Lake semantic model '{semantic_model_name}' converted to Direct Lake on OneLake mode.")
 
+    if update_metadata:
+        update_metadata(
+            semantic_model=dataset_name,
+            workspace=workspace_id,
+            remove_shema = (semantic_model_mode == semantic_model_modes[1])
+        )
+
+    refresh_semantic_model(
+        dataset=semantic_model_name, 
+        workspace=workspace_id,
+        retry_count = 3,
+    )
+
+    print(f"{icons.green_dot} Direct Lake semantic model '{semantic_model_name}' in workspace '{workspace_name}' fully provisioned and refreshed.")
+    return (dataset_name, dataset_id)
+
+def apply_sales_sample_metadata(
+    semantic_model: str,
+    workspace: UUID,
+    remove_shema: bool
+):
+    """
+    semantic_model : str
+        The name or ID of the semantic model. The semantic model must exit.   
+    workspace : str | uuid.UUID
+        The Fabric workspace name or ID where the semantic model is located.
+        The workspace must be specified and must exist or the function fails with a WorkspaceNotFoundException.
+    remove_shema : bool
+        Specifies the the schema name must be removed from all the tables in the semantic model.
+    """
+    with connect_semantic_model(dataset=semantic_model, workspace=workspace, readonly=False) as tom:
+
         # Clean up table names and source lineage tags
         for t in tom.model.Tables:
             for c in t.Columns:
                 if c.Name.startswith("RowNumber") == False:
                     c.SourceLineageTag = c.Name
             
-            if semantic_model_mode == semantic_model_modes[1]:
+            if remove_shema:
                 t.SourceLineageTag = t.SourceLineageTag.replace("[dbo].", "")
 
             if t.SourceLineageTag == "[dbo].[sales_1]" or t.SourceLineageTag == "[sales_1]":
@@ -760,15 +802,7 @@ def provision_sample_semantic_model(
         # Clear the _tables_added list to avoid an unnecessary table refresh.
         tom._tables_added.clear()
 
-    refresh_semantic_model(
-        dataset=semantic_model_name, 
-        workspace=workspace_id,
-        retry_count = 3,
-    )
 
-    print(f"{icons.green_dot} Direct Lake semantic model '{semantic_model_name}' in workspace '{workspace_name}' fully provisioned and refreshed.")
-    return (dataset_name, dataset_id)
-    
 def deprovision_perf_lab_lakehouses(
     test_suite: TestSuite,
 )->None:

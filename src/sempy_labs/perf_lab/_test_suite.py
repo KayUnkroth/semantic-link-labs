@@ -54,6 +54,10 @@ class TestSuite:
     def add_test_definition(self, test_definition):
         self.test_definitions.append(test_definition)
 
+    def remove_test_definition(self, test_definition):
+        if test_definition in self.test_definitions:
+            self.test_definitions.remove(test_definition)
+
     def add_field(self, key, value):
         for test_def in self.test_definitions:
             test_def.add(key, value)
@@ -70,6 +74,7 @@ class TestSuite:
 
     def load(self, 
             delta_table: str,
+            filter_expression: Optional [str ] = None,
             lakehouse: Optional [str | UUID] = None,
             workspace: Optional [str | UUID] = None,
         ):
@@ -84,10 +89,12 @@ class TestSuite:
         ----------
         delta_table : str
             The name or path of the delta table.
-        lakehouse : uuid.UUID
+        filter_expression : str, default=None
+            A PySpark filter expression to narrow down the test definitions that should be loaded.
+        lakehouse : uuid.UUID, default=None
             The Fabric lakehouse ID.
             Defaults to None which resolves to the lakehouse attached to the notebook.
-        workspace : uuid.UUID
+        workspace : uuid.UUID, default=None
             The Fabric workspace ID where the specified lakehouse is located.
             Defaults to None which resolves to the workspace of the attached lakehouse
             or if no lakehouse attached, resolves to the workspace of the notebook.
@@ -98,6 +105,9 @@ class TestSuite:
             lakehouse = lakehouse,
             workspace = workspace,
         )
+
+        if filter_expression:
+            df = df.filter(filter_expression)
 
         for row in df.collect():
             test_definition = TestDefinition(**row.asDict())

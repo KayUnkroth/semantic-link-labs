@@ -13,41 +13,12 @@ from sempy_labs._helper_functions import _read_delta_table, _save_as_delta_table
 from pyspark.sql import SparkSession, DataFrame, Row
 from pyspark.sql.window import Window
 from pyspark.sql.types import (
-    StructType,
-    StructField,
-    IntegerType,
-    StringType,
-    FloatType,
-    DateType,
-    BooleanType,
-    TimestampType,
-    LongType,
+    StructType, StructField, IntegerType, StringType, FloatType, DateType, LongType
 )
 from pyspark.sql.functions import (
-    col,
-    date_format,
-    dayofmonth,
-    dayofweek,
-    expr,
-    to_date,
-    lag,
-    sum,
-    min,
-    max,
-    udf,
-    last_day,
-    lit,
-    month,
-    quarter,
-    rand,
-    year,
-    row_number, 
-    trim, 
-    monotonically_increasing_id,
-    explode, 
-    array, 
-    sequence, 
-    when
+    col, date_format, dayofmonth, dayofweek, expr, to_date, lag, sum, 
+    min, max, udf, last_day, lit, month, quarter, rand, year, row_number,
+    trim, monotonically_increasing_id, explode, array, sequence, when
 )
 
 def get_adventureworks_dw_property_bag(
@@ -141,25 +112,47 @@ def provision_adventureworks_dw_delta_tables(
     # The tables are related to each other through a variety of keys.
     # It is important to generate the tables in this order so that the keys are valid.
     _provision_aw_dimension_tables(workspace_id, lakehouse_id, table_properties)
+
     date_df = _provision_aw_dimdate_table(workspace_id, lakehouse_id, table_properties)
+    _save_as_delta_table(
+            dataframe=date_df,
+            delta_table_name="DimDate",
+            lakehouse=lakehouse_id,
+            workspace=workspace_id,
+        )
+    
     _update_promotion_dates(workspace_id, lakehouse_id, date_df)
     _generate_fact_call_center(workspace_id, lakehouse_id, date_df)
     _generate_fact_currency_rates(workspace_id, lakehouse_id, date_df)
     _get_fact_finance_data(workspace_id, lakehouse_id, date_df)
-    _generate_fact_sales_quota(workspace_id, lakehouse_id, date_df, table_properties)
-    _generate_fact_survey_responses(
-        workspace_id, lakehouse_id, date_df, table_properties
-    )
+    _generate_fact_sales_quota(workspace_id, lakehouse_id, date_df, table_properties)   
+    _generate_fact_survey_responses(workspace_id, lakehouse_id, date_df, table_properties)
+
     table_dict = _generate_sales_tables(
         workspace_id, lakehouse_id, date_df, table_properties
     )
-    _save_fact_sales_tables(
-        workspace_id,
-        lakehouse_id,
-        table_dict["FactInternetSales"],
-        table_dict["FactInternetSalesReason"],
-        table_dict["FactResellerSales"],
+
+    _save_as_delta_table(
+        dataframe=table_dict["FactInternetSales"],
+        delta_table_name="FactInternetSales",
+        lakehouse=lakehouse_id,
+        workspace=workspace_id,
     )
+
+    _save_as_delta_table(
+        dataframe=table_dict["FactInternetSalesReason"],
+        delta_table_name="FactInternetSalesReason",
+        lakehouse=lakehouse_id,
+        workspace=workspace_id,
+    )
+
+    _save_as_delta_table(
+        dataframe=table_dict["FactResellerSales"],
+        delta_table_name="FactResellerSales",
+        lakehouse=lakehouse_id,
+        workspace=workspace_id,
+    )
+
     _generate__fact_product_inventory(workspace_id, lakehouse_id)
 
 
@@ -568,14 +561,6 @@ def _provision_aw_dimdate_table(
             expr("ceil(quarter(add_months(FullDateAlternateKey, 6))/2)"),
         )
     )
-
-    _save_as_delta_table(
-        dataframe=date_df,
-        delta_table_name=table_name,
-        lakehouse=lakehouse_id,
-        workspace=workspace_id,
-    )
-
     return date_df
 
 
@@ -1916,58 +1901,6 @@ def _generate_sales_tables(
         ),
     }
 
-
-def _save_fact_sales_tables(
-    workspace_id: UUID,
-    lakehouse_id: UUID,
-    fact_internet_sales_df: Optional[DataFrame] = None,
-    fact_internet_sales_reason_df: Optional[DataFrame] = None,
-    fact_reseller_sales_df: Optional[DataFrame] = None,
-):
-    """
-    Saves DataFrames for fact sales tables as Delta tables in the specified lakehouse.
-
-    Parameters
-    ----------
-    workspace_id : uuid.UUID
-        The Fabric workspace ID where the lakehouse is located.
-        Defaults to None which resolves to the workspace of the attached lakehouse
-        or if no lakehouse attached, resolves to the workspace of the notebook.
-    lakehouse_id : uuid.UUID
-        The ID of the lakehouse where the delta tables should be added.
-        Defaults to None which resolves to the lakehouse attached to the notebook.
-    fact_internet_sales_df: DataFrame, default = None
-        The DataFrame for the FactInternetSales table.
-    fact_internet_sales_reason_df: DataFrame, default = None
-        The DataFrame for the FactInternetSalesReason table.
-    fact_reseller_sales_df: DataFrame, default = None
-        The DataFrame for the FactResellerSales table.
-    """
-    if fact_internet_sales_df:
-        _save_as_delta_table(
-            dataframe=fact_internet_sales_df,
-            delta_table_name="FactInternetSales",
-            lakehouse=lakehouse_id,
-            workspace=workspace_id,
-        )
-
-    if fact_internet_sales_reason_df:
-        _save_as_delta_table(
-            dataframe=fact_internet_sales_reason_df,
-            delta_table_name="FactInternetSalesReason",
-            lakehouse=lakehouse_id,
-            workspace=workspace_id,
-        )
-
-    if fact_reseller_sales_df:
-        _save_as_delta_table(
-            dataframe=fact_reseller_sales_df,
-            delta_table_name="FactResellerSales",
-            lakehouse=lakehouse_id,
-            workspace=workspace_id,
-        )
-
-
 def _generate__fact_product_inventory(
     workspace_id: UUID,
     lakehouse_id: UUID,
@@ -1982,6 +1915,11 @@ def _generate__fact_product_inventory(
     lakehouse_id : uuid.UUID
         The ID of the lakehouse where the delta tables should be added.
     """
+    
+    print(
+        f"{icons.in_progress} Generating the FactProductInventory table based on FactInternetSales and FactResellerSales order quantities."
+    )
+
     internet_sales_quantities_df = _read_delta_table(
         path="FactInternetSales",
         lakehouse=lakehouse_id,
@@ -2060,3 +1998,20 @@ def _generate__fact_product_inventory(
         lakehouse=lakehouse_id,
         workspace=workspace_id,
     )
+
+def apply_adventureworks_metadata(
+    semantic_model: str,
+    workspace: UUID,
+    remove_shema: bool
+):
+    """
+    semantic_model : str
+        The name or ID of the semantic model. The semantic model must exit.   
+    workspace : str | uuid.UUID
+        The Fabric workspace name or ID where the semantic model is located.
+        The workspace must be specified and must exist or the function fails with a WorkspaceNotFoundException.
+    remove_shema : bool
+        Specifies the the schema name must be removed from all the tables in the semantic model.
+    """
+
+    return None
